@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Stethoscope, MapPin, Phone, Star, ArrowLeft } from 'lucide-react';
+import { Stethoscope, MapPin, Phone, Star, ArrowLeft, CheckCircle, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 
 function Recommendations() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -22,7 +24,54 @@ function Recommendations() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
+      {/* Success Popup with Framer Motion */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md transition-all duration-500"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-[3rem] p-10 max-w-md w-full shadow-[0_32px_64px_-15px_rgba(0,0,0,0.3)] border border-slate-100 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-6">
+                <button onClick={() => setShowSuccess(false)} className="text-slate-300 hover:text-slate-600 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <motion.div 
+                initial={{ scale: 0.5, rotate: -15 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.2, type: "spring" }}
+                className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center text-emerald-600 mx-auto mb-8 shadow-inner"
+              >
+                <CheckCircle className="w-12 h-12" />
+              </motion.div>
+              
+              <h3 className="text-3xl font-black text-slate-900 text-center mb-4 tracking-tight">Request Sent!</h3>
+              <p className="text-slate-500 text-center font-medium mb-10 leading-relaxed">
+                Your consultation request has been successfully transmitted to <span className="text-brand-600 font-bold">Verified Specialists</span>. We will notify you immediately in your dashboard once a doctor accepts.
+              </p>
+              
+              <button 
+                onClick={() => setShowSuccess(false)}
+                className="w-full bg-slate-900 hover:bg-brand-600 text-white font-bold py-5 rounded-[1.5rem] text-xs uppercase tracking-[0.2em] transition-all shadow-xl hover:shadow-brand-200 active:scale-95"
+              >
+                Return to Dashboard
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Link to="/patient/dashboard" className="inline-flex items-center gap-2 text-brand-600 hover:text-brand-700 font-bold text-sm mb-8 transition-all group">
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition" /> BACK TO DASHBOARD
       </Link>
@@ -77,7 +126,10 @@ function Recommendations() {
                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Experience</p>
                    <p className="text-sm font-black text-slate-800 uppercase">{doc.experience}+ Years</p>
                 </div>
-                <button className="bg-slate-900 hover:bg-brand-600 text-white font-bold py-3 px-6 rounded-2xl text-[10px] uppercase tracking-widest transition-all shadow-lg hover:shadow-brand-200">
+                <button 
+                  onClick={() => setShowSuccess(true)}
+                  className="bg-slate-900 hover:bg-brand-600 text-white font-bold py-3 px-6 rounded-2xl text-[10px] uppercase tracking-widest transition-all shadow-lg hover:shadow-brand-200"
+                >
                   CONSULT NOW
                 </button>
               </div>
