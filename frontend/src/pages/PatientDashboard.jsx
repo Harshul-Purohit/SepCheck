@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Thermometer, HeartPulse, AlertTriangle, FileText, Upload, Download, User as UserIcon, Gauge, Clock, Building, CheckCircle, MessageSquare } from 'lucide-react';
+import { Activity, Thermometer, HeartPulse, AlertTriangle, FileText, Upload, Download, User as UserIcon, Gauge, Clock, Building, CheckCircle, MessageSquare, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import PatientProfileForm from '../components/PatientProfileForm';
@@ -83,7 +83,8 @@ function PatientDashboard() {
       // 2. Auto-trigger Assessment
       await api.post('/patient/assessment', {
         ...extracted,
-        additional_notes: `Automated analysis from uploaded report: ${file.name}`
+        additional_notes: `Automated analysis from uploaded report: ${file.name}`,
+        is_doctor_suggested: true
       });
 
       setUploadSuccess(true);
@@ -228,6 +229,13 @@ function PatientDashboard() {
     }
   };
 
+  const getReportStyle = (isSuggested) => {
+    if (isSuggested) {
+      return "p-8 bg-indigo-50/30 border-2 border-indigo-100 rounded-[2rem] shadow-sm hover:shadow-xl hover:bg-indigo-50/50 transition-all duration-300 ring-1 ring-indigo-50";
+    }
+    return "p-8 bg-white border border-slate-100 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300";
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium">Synchronizing Medical Records...</div>;
   }
@@ -308,7 +316,7 @@ function PatientDashboard() {
 
            <div className="space-y-4">
             <h3 className="font-semibold text-slate-900 text-sm flex items-center gap-2">
-              <Upload className="w-4 h-4 text-brand-600" /> Clinical Data Sync
+              <Upload className="w-4 h-4 text-brand-600" /> Upload Doctor Suggested Reports Here
             </h3>
             <label className="block bg-slate-100 hover:bg-slate-200 border border-slate-200 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all">
                 {uploading ? <Activity className="w-5 h-5 animate-spin mx-auto text-brand-600" /> : <Upload className="w-5 h-5 mx-auto text-slate-500 mb-1" />}
@@ -353,6 +361,14 @@ function PatientDashboard() {
                       ) : (
                         <p className="text-xs text-white/80">Awaiting specialist assignment...</p>
                       )}
+                      {c.prescribed_tests_meds && (
+                        <div className="mt-4 p-3 bg-emerald-500/20 rounded-xl border border-emerald-400/30">
+                          <p className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> Doctor Prescription
+                          </p>
+                          <p className="text-xs text-white font-medium italic">"{c.prescribed_tests_meds}"</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -384,7 +400,12 @@ function PatientDashboard() {
       ) : (
         <div className="grid gap-8">
           {reports.map((report) => (
-            <div key={report.id} className="p-8 bg-white border border-slate-100 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300">
+            <div key={report.id} className={getReportStyle(report.is_doctor_suggested)}>
+              {report.is_doctor_suggested && (
+                <div className="mb-4 flex items-center gap-2 text-indigo-600 bg-indigo-100/50 w-fit px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  <UserIcon className="w-3 h-3" /> Doctor Suggested Report
+                </div>
+              )}
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 pb-8 border-b border-slate-50">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">

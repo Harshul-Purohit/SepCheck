@@ -158,6 +158,9 @@ async def upload_diagnostic_report(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user_with_role("patient"))
 ):
+    report = db.query(models.SepsisReport).filter(models.SepsisReport.id == report_id).first()
+    profile = crud.get_patient_profile(db, current_user.id)
+    
     if not report or report.patient_id != profile.id:
         raise HTTPException(status_code=404, detail="Report not found")
     

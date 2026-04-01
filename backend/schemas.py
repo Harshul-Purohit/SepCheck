@@ -66,6 +66,7 @@ class SepsisQuestionnaire(BaseModel):
     low_blood_pressure_symptoms: bool
     recent_surgery_injury: bool
     additional_notes: Optional[str] = None
+    is_doctor_suggested: Optional[bool] = False
 
 class SepsisReportResponse(BaseModel):
     id: int
@@ -84,6 +85,7 @@ class SepsisReportResponse(BaseModel):
     suggested_tests: Optional[List[str]] = None
     inner_analysis_summary: Optional[str] = None
     inner_analysis_data: Optional[dict] = None
+    is_doctor_suggested: bool
     
     class Config:
         orm_mode = True
@@ -107,6 +109,7 @@ class ConsultationUpdate(BaseModel):
     hospital: Optional[str] = None
     required_tests: Optional[List[str]] = None
     doctor_notes: Optional[str] = None
+    prescribed_tests_meds: Optional[str] = None
 
 class ConsultationResponse(BaseModel):
     id: int
@@ -119,6 +122,7 @@ class ConsultationResponse(BaseModel):
     hospital: Optional[str]
     required_tests: Optional[List[str]]
     doctor_notes: Optional[str]
+    prescribed_tests_meds: Optional[str]
     created_at: Any
     
     class Config:

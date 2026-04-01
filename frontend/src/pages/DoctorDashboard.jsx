@@ -24,6 +24,9 @@ function DoctorDashboard() {
   
   const pollInterval = useRef(null);
   const emergencyPoll = useRef(null);
+  const [prescribingFor, setPrescribingFor] = useState(null);
+  const [prescribtionText, setPrescriptionText] = useState("");
+  const [prescribeLoading, setPrescribeLoading] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -88,6 +91,26 @@ function DoctorDashboard() {
       fetchConsultations();
     } catch (err) {
       console.error("Response failed", err);
+    }
+  };
+
+  const handlePrescribe = async (e) => {
+    e.preventDefault();
+    setPrescribeLoading(true);
+    try {
+      await api.post(`/consult/respond/${prescribingFor}`, {
+        status: 'accepted', // Keep current status
+        prescribed_tests_meds: prescribtionText
+      });
+      setPrescribingFor(null);
+      setPrescriptionText("");
+      fetchConsultations();
+      alert("Prescription sent to patient successfully!");
+    } catch (err) {
+      console.error("Prescription failed", err);
+      alert("Failed to send prescription.");
+    } finally {
+      setPrescribeLoading(false);
     }
   };
 
@@ -205,12 +228,20 @@ function DoctorDashboard() {
                                 <p className="text-xs font-bold text-slate-700">Patient Case #{c.report_id + 1000}</p>
                              </div>
                           </div>
-                          <button 
-                            onClick={() => setShowChat(c.id)}
-                            className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-600 rounded-xl hover:bg-emerald-50 transition shadow-sm border border-emerald-100 font-bold text-xs"
-                          >
-                            <MessageSquare className="w-4 h-4" /> Open Chat
-                          </button>
+                          <div className="flex items-center gap-2">
+                             <button 
+                               onClick={() => setPrescribingFor(c.id)}
+                               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm font-bold text-xs"
+                             >
+                               <ShieldCheck className="w-4 h-4" /> Prescribe
+                             </button>
+                             <button 
+                               onClick={() => setShowChat(c.id)}
+                               className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-600 rounded-xl hover:bg-emerald-50 transition shadow-sm border border-emerald-100 font-bold text-xs"
+                             >
+                               <MessageSquare className="w-4 h-4" /> Open Chat
+                             </button>
+                          </div>
                        </div>
                      ) : null
                    ))
@@ -353,6 +384,40 @@ function DoctorDashboard() {
                    </div>
                    <button type="submit" className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-brand-100 flex items-center justify-center gap-2">
                       <Send className="w-5 h-5" /> Send Response to Patient
+                   </button>
+                </form>
+             </div>
+          </div>
+        )}
+        
+        {/* Prescription Modal */}
+        {prescribingFor && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+             <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl p-8 animate-in fade-in zoom-in duration-300">
+                <div className="flex justify-between items-center mb-6">
+                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Prescribe Tests & Meds</h3>
+                   <button onClick={() => setPrescribingFor(null)} className="text-slate-400 hover:text-slate-600"><XCircle className="w-6 h-6" /></button>
+                </div>
+                <form onSubmit={handlePrescribe} className="space-y-6">
+                   <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Prescription Details</label>
+                      <textarea 
+                        required
+                        placeholder="List medicines, dosages, and any further diagnostic tests required..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:ring-2 focus:ring-brand-500 outline-none transition-all resize-none"
+                        rows="6"
+                        value={prescribtionText}
+                        onChange={(e) => setPrescriptionText(e.target.value)}
+                      />
+                      <p className="mt-2 text-[10px] text-slate-400 font-medium italic">* This will be reflected instantly on the patient's dashboard.</p>
+                   </div>
+                   <button 
+                    type="submit" 
+                    disabled={prescribeLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all"
+                   >
+                      {prescribeLoading ? <Activity className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+                      Send Prescription to Patient
                    </button>
                 </form>
              </div>

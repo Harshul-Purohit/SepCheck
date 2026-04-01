@@ -63,8 +63,15 @@ def analyze_sepsis_risk(patient_data: dict, questionnaire: dict):
         )
         
         # Parse JSON first
-        result = json.loads(chat_completion.choices[0].message.content)
+        content = chat_completion.choices[0].message.content
+        result = json.loads(content)
         
+        # If AI returned a list, take the first object
+        if isinstance(result, list) and len(result) > 0:
+            result = result[0]
+        elif not isinstance(result, dict):
+             raise ValueError("AI did not return a valid JSON object")
+
         # Normalize list and keys
         if 'suggested_tests' not in result:
             for key in result.keys():
@@ -124,36 +131,80 @@ def get_ai_followup_response(report_data: dict, user_question: str, history: lis
         return f"I'm sorry, I'm having trouble connecting to the AI service. error: {str(e)}"
 
 def analyze_diagnostic_report(report_text: str):
-    # Truncate to avoid context window / processing time issues
-    truncated_text = report_text[:10000] if len(report_text) > 10000 else report_text
+    # Truncate to keep the message compact and fast
+    truncated_text = report_text[:5000] if len(report_text) > 5000 else report_text
     
     prompt = f"""
-    Analyze the following clinical lab report text and provide a summary of the findings related to Sepsis (look for markers like WBC count, Lactate, Procalcitonin, CRP, or Culture results).
-    
-    Report Text:
+    [LAB REPORT CONTENT]
     {truncated_text}
-    
-    Provide your response in JSON format with:
+    [/END CONTENT]
+
+    TASK: Analyze the above lab report for sepsis indicators.
+    INSTRUCTION: Write a SHORT AND CRISP summary in clear English.
+    CRITICAL: The 'analysis_summary' field is MANDATORY and must contain your main findings.
+
+    FORMAT: Return ONLY valid JSON. No explanations. No text outside JSON.
+
+    Required JSON Schema:
     {{
-        "analysis_summary": "<A concisely written clinical summary of the findings>",
-        "critical_markers": ["<List of abnormal or concerning values found in the report>", ...],
-        "concern_status": "Improved" | "Stable" | "Worsening" | "Critical"
+        "risk_level": "low" | "medium" | "high",
+        "findings": {{
+            "elevated_wbc": boolean,
+            "elevated_lactate": boolean,
+            "elevated_crp": boolean,
+            "other_critical_findings": ["string"]
+        }},
+        "recommendation": "string",
+        "analysis_summary": "Professional clinical summary of findings."
     }}
     """
     
-    # Try with large model first
-    models_to_try = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
+    # Use the instant model first for higher reliability in JSON generation
+    models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
     last_error = ""
     
     for model in models_to_try:
+        print(f"DEBUG: Running clinical analysis with model: {model}")
         try:
             completion = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model=model,
                 temperature=0.1,
+                max_tokens=2048,
                 response_format={"type": "json_object"}
             )
-            return json.loads(completion.choices[0].message.content)
+            content = completion.choices[0].message.content
+            raw_result = json.loads(content)
+            
+            # Robust type checking
+            if isinstance(raw_result, list) and len(raw_result) > 0:
+                raw_result = raw_result[0]
+            
+            if not isinstance(raw_result, dict):
+                print(f"Unexpected AI response type: {type(raw_result)}")
+                continue # Try next model
+            
+            # Smart Key Mapping: Search for anything resembling a summary
+            summary = raw_result.get("analysis_summary") or raw_result.get("recommendation")
+            if not summary:
+                # Try finding any key that looks like a summary
+                for k, v in raw_result.items():
+                    if any(term in k.lower() for term in ["summary", "finding", "result", "conclusion"]):
+                        summary = v
+                        break
+            
+            # Reconstruction Fallback: Build one from findings if still empty
+            if not summary and isinstance(raw_result.get("findings"), dict):
+                f = raw_result["findings"]
+                active_findings = [k.replace("elevated_", "").upper() for k, v in f.items() if v is True]
+                if active_findings:
+                    summary = f"Elevated levels of {', '.join(active_findings)} detected in clinical report."
+            
+            return {
+                "analysis_summary": str(summary or "No summary available."),
+                "critical_markers": raw_result.get("findings", {}).get("other_critical_findings") if isinstance(raw_result.get("findings"), dict) else [],
+                "concern_status": str(raw_result.get("risk_level", "Unknown")).capitalize()
+            }
         except Exception as e:
             last_error = str(e)
             print(f"Extraction error with {model}: {e}")

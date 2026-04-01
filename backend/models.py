@@ -88,6 +88,7 @@ class SepsisReport(Base):
     suggested_tests = Column(JSON, nullable=True) # List of tests like "Blood Culture", "Lactate"
     inner_analysis_summary = Column(Text, nullable=True) # AI summary of test results
     inner_analysis_data = Column(JSON, nullable=True) # Extracted OCR/JSON data from inner analysis report
+    is_doctor_suggested = Column(Boolean, default=False) # Marked by patient when uploading doctor requested lab tests
     
     patient = relationship("PatientProfile", back_populates="reports")
     doctor = relationship("DoctorProfile", back_populates="assigned_reports")
@@ -107,6 +108,7 @@ class ConsultationRequest(Base):
     hospital = Column(String, nullable=True)
     required_tests = Column(JSON, nullable=True)
     doctor_notes = Column(Text, nullable=True)
+    prescribed_tests_meds = Column(Text, nullable=True) # Doctor's prescribed meds and tests
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
