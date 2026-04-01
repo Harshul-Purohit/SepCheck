@@ -76,3 +76,35 @@ def analyze_sepsis_risk(patient_data: dict, questionnaire: dict):
             "urgency_level": "Monitor",
             "recommendations": "Please consult a doctor manually."
         }
+
+def get_ai_followup_response(report_data: dict, user_question: str, history: list = []):
+    # Prepare context from report
+    context = f"""
+    SEPSIS ASSESSMENT REPORT CONTEXT:
+    - Risk Level: {report_data.get('risk_level')}
+    - Probability: {report_data.get('probability_score')}
+    - Summary: {report_data.get('symptoms_summary')}
+    - Abnormalities: {', '.join(report_data.get('abnormal_values', []))}
+    - Recommendations: {report_data.get('recommendations')}
+    """
+    
+    messages = [
+        {"role": "system", "content": "You are a helpful medical AI assistant. Answer the user's questions about their sepsis assessment report based on the provided context. Be professional, empathetic, and clear. If you don't know something, advise consulting a professional."},
+    ]
+    
+    # Add history
+    for msg in history:
+        messages.append(msg)
+        
+    # Add current context and question
+    messages.append({"role": "user", "content": f"{context}\n\nUser Question: {user_question}"})
+    
+    try:
+        completion = client.chat.completions.create(
+            messages=messages,
+            model="llama-3.3-70b-versatile",
+            temperature=0.7
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"I'm sorry, I'm having trouble connecting to the AI service. error: {str(e)}"

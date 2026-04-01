@@ -14,6 +14,7 @@ class User(Base):
 
     patient_profile = relationship("PatientProfile", back_populates="user", uselist=False)
     doctor_profile = relationship("DoctorProfile", back_populates="user", uselist=False)
+    chat_messages = relationship("ChatMessage", back_populates="sender")
 
 class PatientProfile(Base):
     __tablename__ = "patient_profiles"
@@ -38,6 +39,7 @@ class PatientProfile(Base):
     user = relationship("User", back_populates="patient_profile")
     reports = relationship("SepsisReport", back_populates="patient")
     consultations = relationship("ConsultationRequest", back_populates="patient")
+    emergency_requests = relationship("EmergencyRequest", back_populates="patient")
 
 class DoctorProfile(Base):
     __tablename__ = "doctor_profiles"
@@ -106,3 +108,29 @@ class ConsultationRequest(Base):
     patient = relationship("PatientProfile", back_populates="consultations")
     doctor = relationship("DoctorProfile", back_populates="consultations")
     report = relationship("SepsisReport", back_populates="consultations")
+    chat_messages = relationship("ChatMessage", back_populates="consultation")
+
+class EmergencyRequest(Base):
+    __tablename__ = "emergency_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patient_profiles.id"))
+    report_id = Column(Integer, ForeignKey("sepsis_reports.id"))
+    
+    status = Column(String, default="active") # active, handled
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    patient = relationship("PatientProfile", back_populates="emergency_requests")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    consultation_id = Column(Integer, ForeignKey("consultation_requests.id"))
+    sender_id = Column(Integer, ForeignKey("users.id"))
+    
+    message = Column(Text)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    consultation = relationship("ConsultationRequest", back_populates="chat_messages")
+    sender = relationship("User", back_populates="chat_messages")

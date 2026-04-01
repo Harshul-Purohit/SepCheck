@@ -118,3 +118,39 @@ class ConsultationResponse(BaseModel):
     class Config:
         orm_mode = True
         from_attributes = True
+
+# Chat and Emergency
+class ChatMessageCreate(BaseModel):
+    consultation_id: int
+    message: str
+
+class ChatMessage(BaseModel):
+    id: int
+    consultation_id: int
+    sender_id: int
+    message: str
+    created_at: Any
+    
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class EmergencyRequestCreate(BaseModel):
+    report_id: int
+
+class EmergencyRequestResponse(BaseModel):
+    id: int
+    patient_id: int
+    report_id: int
+    status: str
+    created_at: Any
+    patient_name: Optional[str] = None
+    
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class AIChatRequest(BaseModel):
+    report_id: int
+    message: str
+    history: Optional[List[dict]] = []

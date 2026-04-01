@@ -4,6 +4,8 @@ import { Activity, Thermometer, HeartPulse, AlertTriangle, FileText, Upload, Dow
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import PatientProfileForm from '../components/PatientProfileForm';
+import ChatWindow from '../components/ChatWindow';
+import AIFollowupChat from '../components/AIFollowupChat';
 
 function PatientDashboard() {
   const { user } = useAuth();
@@ -14,6 +16,8 @@ function PatientDashboard() {
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [consulting, setConsulting] = useState(false);
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [showChat, setShowChat] = useState(null);
   const pollInterval = useRef(null);
 
   useEffect(() => {
@@ -104,6 +108,26 @@ function PatientDashboard() {
     }
   };
 
+  const handleNeedHelpNow = async () => {
+    if (reports.length === 0) {
+      alert("Please complete at least one assessment first so doctors have your data.");
+      return;
+    }
+    
+    setEmergencyLoading(true);
+    try {
+      await api.post('/patient/emergency', {
+        report_id: reports[0].id // Use latest report
+      });
+      alert("Emergency Alert Sent! On-call doctors have been notified with your profile and latest report.");
+      fetchConsultations();
+    } catch (err) {
+      console.error("Emergency failed", err);
+    } finally {
+      setEmergencyLoading(false);
+    }
+  };
+
   const downloadPDF = async (reportId) => {
     try {
       const res = await api.get(`/patient/report/${reportId}/pdf`, {
@@ -148,21 +172,26 @@ function PatientDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* High Risk Urgent Alert */}
-      {reports.some(r => r.risk_level === 'High') && (
-        <div className="mb-8 p-6 bg-rose-600 rounded-[2rem] text-white flex items-center justify-between shadow-xl shadow-rose-200 animate-pulse">
-           <div className="flex items-center gap-6">
-              <div className="p-3 bg-white/20 rounded-2xl">
-                <AlertTriangle className="w-8 h-8" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Urgent Clinical Alert Detected</h3>
-                <p className="text-rose-100 font-medium">Your latest assessment indicates High Risk. Please visit the nearest hospital or click Consult Now.</p>
-              </div>
-           </div>
-           <Building className="w-12 h-12 opacity-30 hidden md:block" />
+      {/* EMERGENCY BUTTON SECTION */}
+      <div className="mb-10 p-1 bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <div className="flex flex-col md:flex-row items-center gap-6 p-6">
+          <div className="bg-rose-50 p-4 rounded-3xl text-rose-600">
+            <HeartPulse className="w-10 h-10 animate-pulse" />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Need Help Now?</h2>
+            <p className="text-slate-500 font-medium">One-tap emergency signal to notify all on-call clinical specialists.</p>
+          </div>
+          <button 
+            onClick={handleNeedHelpNow}
+            disabled={emergencyLoading}
+            className="w-full md:w-auto px-10 py-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white font-black rounded-[2rem] shadow-2xl shadow-rose-200 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+          >
+            {emergencyLoading ? <Activity className="w-6 h-6 animate-spin" /> : <AlertTriangle className="w-6 h-6" />}
+            HELP ME NOW
+          </button>
         </div>
-      )}
+      </div>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
@@ -236,9 +265,17 @@ function PatientDashboard() {
                         <span className="text-[10px] font-medium text-white/60">{new Date(c.created_at).toLocaleDateString()}</span>
                       </div>
                       {c.status === 'accepted' ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-bold text-emerald-300 flex items-center gap-1"><Clock className="w-3 h-3" /> {c.appointment_time}</p>
-                          <p className="text-xs text-white flex items-center gap-1"><Building className="w-3 h-3" /> {c.hospital}</p>
+                        <div className="flex justify-between items-end">
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-emerald-300 flex items-center gap-1"><Clock className="w-3 h-3" /> {c.appointment_time}</p>
+                            <p className="text-xs text-white flex items-center gap-1"><Building className="w-3 h-3" /> {c.hospital}</p>
+                          </div>
+                          <button 
+                            onClick={() => setShowChat(c.id)}
+                            className="p-2 bg-white text-brand-600 rounded-xl hover:bg-brand-50 transition shadow-lg"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </button>
                         </div>
                       ) : (
                         <p className="text-xs text-white/80">Awaiting specialist assignment...</p>
@@ -348,7 +385,7 @@ function PatientDashboard() {
                     {Object.entries(report.questionnaire_data).map(([key, val]) => (
                       <li key={key} className="flex justify-between items-center text-sm bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                         <span className="text-slate-500 font-bold capitalize">{key.replace(/_/g, ' ')}</span>
-                        <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded-md ${val ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'}`}>
+                        <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded-md ${val === true ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50'}`}>
                           {val === true ? 'YES' : val === false ? 'NO' : val}
                         </span>
                       </li>
@@ -356,9 +393,17 @@ function PatientDashboard() {
                   </ul>
                 </div>
               </div>
+              
+              {/* AI FOLLOW-UP CHAT */}
+              <AIFollowupChat reportId={report.id} reportRisk={report.risk_level} />
             </div>
           ))}
         </div>
+      )}
+
+      {/* LIVE CHAT WINDOW */}
+      {showChat && (
+        <ChatWindow consultationId={showChat} onClose={() => setShowChat(null)} />
       )}
     </div>
   );

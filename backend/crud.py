@@ -128,3 +128,44 @@ def update_consultation(db: Session, consult_id: int, doctor_id: int, update: sc
     db.commit()
     db.refresh(db_consult)
     return db_consult
+
+# Emergency and Chat CRUD
+def create_emergency_request(db: Session, patient_id: int, report_id: int):
+    # Check if active one exists
+    active = db.query(models.EmergencyRequest).filter(
+        models.EmergencyRequest.patient_id == patient_id,
+        models.EmergencyRequest.status == "active"
+    ).first()
+    if active:
+        return active
+        
+    db_emergency = models.EmergencyRequest(
+        patient_id=patient_id,
+        report_id=report_id,
+        status="active"
+    )
+    db.add(db_emergency)
+    db.commit()
+    db.refresh(db_emergency)
+    return db_emergency
+
+def get_active_emergencies(db: Session):
+    emergencies = db.query(models.EmergencyRequest).filter(models.EmergencyRequest.status == "active").all()
+    # Map to include patient name for convenience
+    for e in emergencies:
+        e.patient_name = e.patient.full_name
+    return emergencies
+
+def create_chat_message(db: Session, consultation_id: int, sender_id: int, message: str):
+    db_message = models.ChatMessage(
+        consultation_id=consultation_id,
+        sender_id=sender_id,
+        message=message
+    )
+    db.add(db_message)
+    db.commit()
+    db.refresh(db_message)
+    return db_message
+
+def get_chat_history(db: Session, consultation_id: int):
+    return db.query(models.ChatMessage).filter(models.ChatMessage.consultation_id == consultation_id).order_by(models.ChatMessage.created_at.asc()).all()

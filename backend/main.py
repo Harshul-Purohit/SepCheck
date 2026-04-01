@@ -208,6 +208,43 @@ def respond_to_consultation(consult_id: int, update: schemas.ConsultationUpdate,
     doctor_profile = crud.get_doctor_profile(db, current_user.id)
     return crud.update_consultation(db, consult_id, doctor_profile.id, update)
 
+# --- Emergency & Chat APIs ---
+
+@app.post("/patient/emergency", response_model=schemas.EmergencyRequestResponse)
+def trigger_emergency(req: schemas.EmergencyRequestCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user_with_role("patient"))):
+    profile = crud.get_patient_profile(db, current_user.id)
+    return crud.create_emergency_request(db, profile.id, req.report_id)
+
+@app.get("/doctor/emergencies", response_model=List[schemas.EmergencyRequestResponse])
+def get_emergencies(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user_with_role("doctor"))):
+    return crud.get_active_emergencies(db)
+
+@app.post("/chat/send", response_model=schemas.ChatMessage)
+def send_message(msg: schemas.ChatMessageCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    return crud.create_chat_message(db, msg.consultation_id, current_user.id, msg.message)
+
+@app.get("/chat/history/{consultation_id}", response_model=List[schemas.ChatMessage])
+def get_history(consultation_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+    return crud.get_chat_history(db, consultation_id)
+
+@app.post("/ai/chat-followup")
+def ai_followup(req: schemas.AIChatRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user_with_role("patient"))):
+    report = db.query(models.SepsisReport).filter(models.SepsisReport.id == req.report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+        
+    # Standardize data for AI
+    report_data = {
+        "risk_level": report.risk_level,
+        "probability_score": report.probability_score,
+        "symptoms_summary": report.symptoms_summary,
+        "abnormal_values": report.abnormal_values,
+        "recommendations": report.recommendations
+    }
+    
+    response = ai_service.get_ai_followup_response(report_data, req.message, req.history)
+    return {"response": response}
+
 @app.get("/")
 def read_root():
     return {"message": "SepCheck AI API - Health Ready"}
