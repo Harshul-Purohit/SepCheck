@@ -17,7 +17,10 @@ function PatientDashboard() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [consulting, setConsulting] = useState(false);
   const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [nearbyHospitals, setNearbyHospitals] = useState([]);
+  const [showHospitals, setShowHospitals] = useState(false);
   const [showChat, setShowChat] = useState(null);
+  const [testUploading, setTestUploading] = useState(null);
   const pollInterval = useRef(null);
 
   useEffect(() => {
@@ -116,15 +119,71 @@ function PatientDashboard() {
     
     setEmergencyLoading(true);
     try {
+      // 1. Send Emergency Signal
       await api.post('/patient/emergency', {
-        report_id: reports[0].id // Use latest report
+        report_id: reports[0].id 
       });
-      alert("Emergency Alert Sent! On-call doctors have been notified with your profile and latest report.");
+      
+      // 2. Try to get location for nearby hospitals
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          // Simple Overpass API call to find hospitals
+          try {
+            const query = `[out:json];node["amenity"="hospital"](around:5000,${latitude},${longitude});out 5;`;
+            const osmRes = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+            const data = await osmRes.json();
+            setNearbyHospitals(data.elements.map(e => ({
+                name: e.tags.name || "Unnamed Hospital",
+                lat: e.lat,
+                lon: e.lon
+            })));
+            setShowHospitals(true);
+          } catch (osmErr) {
+            console.error("OSM Fetch failed", osmErr);
+            alert("Emergency Alert Sent! Note: Could not retrieve nearby hospital list.");
+          }
+        }, (err) => {
+          console.warn("Location access denied", err);
+          alert("Emergency Alert Sent! (Location access denied for hospital search)");
+        });
+      } else {
+        alert("Emergency Alert Sent! (Geolocation not supported)");
+      }
+      
       fetchConsultations();
     } catch (err) {
       console.error("Emergency failed", err);
     } finally {
       setEmergencyLoading(false);
+    }
+  };
+
+  const handleDiagnosticUpload = async (reportId, event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setTestUploading(reportId);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const url = `/patient/report/${reportId}/upload-diagnostic`;
+      await api.post(url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      fetchProfileAndReports();
+      alert("Diagnostic report uploaded and summarized successfully!");
+    } catch (error) {
+      console.error("Diagnostic upload failed", error);
+      const serverDetail = error.response?.data?.detail;
+      const status = error.response?.status;
+      const errorMsg = serverDetail 
+        ? `Server Error (${status}): ${serverDetail}` 
+        : `Diagnostic upload failed: ${error.message}`;
+      alert(errorMsg);
+    } finally {
+      setTestUploading(null);
     }
   };
 
@@ -371,10 +430,46 @@ function PatientDashboard() {
                   </div>
                   
                   <div className="space-y-4">
-                    <h4 className="font-bold text-slate-900 text-lg">Actionable Recommendations</h4>
-                    <div className="bg-brand-600 text-white p-6 rounded-3xl relative overflow-hidden shadow-lg shadow-brand-100">
+                    <h4 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-emerald-500" /> Actionable Recommendations
+                    </h4>
+                    <div className="bg-brand-600 text-white p-6 rounded-3xl relative overflow-hidden shadow-lg shadow-brand-100 mb-6">
                        <p className="font-medium text-sm leading-relaxed relative z-10">{report.recommendations}</p>
                        <FileText className="absolute bottom-0 right-0 w-24 h-24 text-white opacity-10 -mr-4 -mb-4" />
+                    </div>
+
+                    <div className="space-y-4 border-t border-slate-100 pt-6">
+                        <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                            <Thermometer className="w-5 h-5 text-amber-500" /> Suggested Diagnostic Tests
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                            {report.suggested_tests?.length > 0 ? (
+                                report.suggested_tests.map((test, i) => (
+                                    <span key={i} className="text-xs font-bold px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">{test}</span>
+                                ))
+                            ) : (
+                                <span className="text-xs text-slate-400 italic">No specific tests suggested by AI for this case.</span>
+                            )}
+                        </div>
+                        
+                        <label className="block p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-all text-center">
+                            {testUploading === report.id ? (
+                                <Activity className="w-5 h-5 animate-spin mx-auto text-brand-600" />
+                            ) : (
+                                <>
+                                    <Upload className="w-5 h-5 mx-auto text-slate-400 mb-1" />
+                                    <span className="text-[10px] font-black uppercase text-slate-500">Upload Test Results for Inner Analysis</span>
+                                </>
+                            )}
+                            <input type="file" className="hidden" onChange={(e) => handleDiagnosticUpload(report.id, e)} />
+                        </label>
+
+                        {report.inner_analysis_summary && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
+                                <p className="text-[10px] font-black uppercase text-emerald-600 mb-2 tracking-widest">INNER CLINICAL ANALYSIS</p>
+                                <p className="text-sm font-medium text-slate-700 leading-relaxed italic">"{report.inner_analysis_summary}"</p>
+                            </div>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -404,6 +499,46 @@ function PatientDashboard() {
       {/* LIVE CHAT WINDOW */}
       {showChat && (
         <ChatWindow consultationId={showChat} onClose={() => setShowChat(null)} />
+      )}
+
+      {/* HOSPITAL MODAL */}
+      {showHospitals && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+              <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                  <div className="bg-rose-600 p-8 text-white text-center">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-4 animate-bounce" />
+                      <h3 className="text-2xl font-black">Emergency Help Found</h3>
+                      <p className="text-rose-100 font-medium mt-1">Here are the nearest hospitals for instant action.</p>
+                  </div>
+                  <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+                      {nearbyHospitals.map((h, i) => (
+                          <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-rose-200 transition-all group">
+                              <div>
+                                  <p className="font-bold text-slate-900">{h.name}</p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Building className="w-3 h-3" /> Hospital Node</p>
+                              </div>
+                              <a 
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="bg-white text-rose-600 text-xs font-black p-3 rounded-xl shadow-sm border border-slate-100 group-hover:bg-rose-600 group-hover:text-white transition-all"
+                              >
+                                  NAVIGATE
+                              </a>
+                          </div>
+                      ))}
+                      {nearbyHospitals.length === 0 && <p className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-xs">No hospitals found within 5km.</p>}
+                  </div>
+                  <div className="p-6 pt-0">
+                      <button 
+                        onClick={() => setShowHospitals(false)}
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition shadow-lg"
+                      >
+                          I've found help
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );

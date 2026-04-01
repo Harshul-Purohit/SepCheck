@@ -1,8 +1,9 @@
 import axios from 'axios';
 
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 const api = axios.create({
-  baseURL: 'https://sepcheck.onrender.com', // Render Backend API
-  // baseURL: 'http://localhost:8000', // Local Backend API 
+  baseURL: isLocal ? 'http://localhost:8000' : 'https://sepcheck.onrender.com', 
 });
 
 // Interceptor to add auth token

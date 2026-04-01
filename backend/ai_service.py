@@ -43,7 +43,8 @@ def analyze_sepsis_risk(patient_data: dict, questionnaire: dict):
         "explanation": "<A short clinical explanation for why this risk level was chosen based on the vitals and answers>",
         "abnormal_values": ["<list of abnormal indicators like 'High Heart Rate', 'Low BP'>", ...],
         "urgency_level": "Immediate" | "Within 24 hours" | "Monitor",
-        "recommendations": "<short actionable clinical recommendations for the patient>"
+        "recommendations": "<short actionable clinical recommendations for the patient>",
+        "suggested_tests": ["<list of 3-4 specific clinical tests for deeper analysis of sepsis, e.g., 'Blood Culture', 'Lactate Level', 'CBC'>", ...]
     }}
     Do not include any markdown tags or text outside of the JSON object.
     """
@@ -56,13 +57,26 @@ def analyze_sepsis_risk(patient_data: dict, questionnaire: dict):
                     "content": prompt_content,
                 }
             ],
-            model="llama-3.3-70b-versatile", # upgraded to versatile non-deprecated target
-            temperature=0.2, # keep it deterministic
+            model="llama-3.3-70b-versatile",
+            temperature=0.2,
             response_format={"type": "json_object"}
         )
         
-        # Parse JSON
+        # Parse JSON first
         result = json.loads(chat_completion.choices[0].message.content)
+        
+        # Normalize list and keys
+        if 'suggested_tests' not in result:
+            for key in result.keys():
+                if 'test' in key.lower() and isinstance(result[key], list):
+                    result['suggested_tests'] = result[key]
+                    break
+        
+        # Ensure it's a list
+        if 'suggested_tests' not in result or not isinstance(result['suggested_tests'], list):
+            result['suggested_tests'] = ["Blood Culture", "Lactate Level", "CBC"]
+            
+        print(f"AI ANALYSIS SUCCESS: {result.get('risk_level')} risk")
         return result
     except Exception as e:
         print(f"Error calling Groq API: {e}")
@@ -108,3 +122,46 @@ def get_ai_followup_response(report_data: dict, user_question: str, history: lis
         return completion.choices[0].message.content
     except Exception as e:
         return f"I'm sorry, I'm having trouble connecting to the AI service. error: {str(e)}"
+
+def analyze_diagnostic_report(report_text: str):
+    # Truncate to avoid context window / processing time issues
+    truncated_text = report_text[:10000] if len(report_text) > 10000 else report_text
+    
+    prompt = f"""
+    Analyze the following clinical lab report text and provide a summary of the findings related to Sepsis (look for markers like WBC count, Lactate, Procalcitonin, CRP, or Culture results).
+    
+    Report Text:
+    {truncated_text}
+    
+    Provide your response in JSON format with:
+    {{
+        "analysis_summary": "<A concisely written clinical summary of the findings>",
+        "critical_markers": ["<List of abnormal or concerning values found in the report>", ...],
+        "concern_status": "Improved" | "Stable" | "Worsening" | "Critical"
+    }}
+    """
+    
+    # Try with large model first
+    models_to_try = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
+    last_error = ""
+    
+    for model in models_to_try:
+        try:
+            completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+            return json.loads(completion.choices[0].message.content)
+        except Exception as e:
+            last_error = str(e)
+            print(f"Extraction error with {model}: {e}")
+            continue # Try next model
+            
+    # If all models fail
+    return {
+        "analysis_summary": f"Clinical analysis partially interrupted. error: {last_error}",
+        "critical_markers": ["Analysis failed after multiple attempts"],
+        "concern_status": "Unknown"
+    }

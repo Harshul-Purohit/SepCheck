@@ -73,7 +73,8 @@ def create_sepsis_report(db: Session, patient_id: int, questionnaire_data: dict,
         explanation=ai_analysis.get('explanation', ''),
         abnormal_values=ai_analysis.get('abnormal_values', []),
         urgency_level=ai_analysis.get('urgency_level', 'Monitor'),
-        recommendations=ai_analysis.get('recommendations', '')
+        recommendations=ai_analysis.get('recommendations', ''),
+        suggested_tests=ai_analysis.get('suggested_tests', []) # Save AI suggested tests
     )
     db.add(db_report)
     db.commit()

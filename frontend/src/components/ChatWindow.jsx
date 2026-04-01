@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, User, MessageSquare, X } from 'lucide-react';
+import { Send, User, MessageSquare, X, Clock } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -84,20 +84,27 @@ function ChatWindow({ consultationId, onClose }) {
             <p className="text-xs text-slate-400 mt-1">Start the conversation with your specialist.</p>
           </div>
         ) : (
-          messages.map((m) => (
-            <div key={m.id} className={`flex ${m.sender_id === user?.user_id ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm
-                ${m.sender_id === user?.user_id 
-                  ? 'bg-brand-600 text-white rounded-tr-none' 
-                  : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'}
-              `}>
-                <p className="leading-relaxed">{m.message}</p>
-                <p className={`text-[9px] mt-1 font-bold ${m.sender_id === user?.user_id ? 'text-brand-100' : 'text-slate-400'}`}>
-                  {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
+          messages.map((m) => {
+            const isMe = m.sender_id === user?.user_id;
+            return (
+              <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 px-1">
+                  {isMe ? 'You' : 'Specialist'}
+                </span>
+                <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-md transition-all
+                  ${isMe 
+                    ? 'bg-brand-600 text-white rounded-tr-none' 
+                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'}
+                `}>
+                  <p className="leading-relaxed font-medium">{m.message}</p>
+                  <p className={`text-[9px] mt-2 font-bold opacity-70 flex items-center gap-1 ${isMe ? 'text-brand-100' : 'text-slate-400'}`}>
+                    <Clock className="w-3 h-3" />
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

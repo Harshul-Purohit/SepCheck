@@ -84,6 +84,11 @@ class SepsisReport(Base):
     urgency_level = Column(String) # Immediate, Within 24 hours, Monitor
     recommendations = Column(Text)
     
+    # New Fields for Inner Analysis
+    suggested_tests = Column(JSON, nullable=True) # List of tests like "Blood Culture", "Lactate"
+    inner_analysis_summary = Column(Text, nullable=True) # AI summary of test results
+    inner_analysis_data = Column(JSON, nullable=True) # Extracted OCR/JSON data from inner analysis report
+    
     patient = relationship("PatientProfile", back_populates="reports")
     doctor = relationship("DoctorProfile", back_populates="assigned_reports")
     consultations = relationship("ConsultationRequest", back_populates="report")

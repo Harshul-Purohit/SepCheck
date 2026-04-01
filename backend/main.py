@@ -151,6 +151,44 @@ def download_patient_report_pdf(report_id: int, db: Session = Depends(database.g
     pdf_buffer = pdf_service.generate_medical_report_pdf(profile.full_name, report)
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=sepcheck_report_{report_id}.pdf"})
 
+@app.post("/patient/report/{report_id}/upload-diagnostic", response_model=schemas.SepsisReportResponse)
+async def upload_diagnostic_report(
+    report_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user_with_role("patient"))
+):
+    if not report or report.patient_id != profile.id:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    # Read file content (Mock OCR for simplicity)
+    content = await file.read()
+    text_content = content.decode('utf-8', errors='ignore') # In reality, use OCR
+    
+    if not text_content.strip():
+        text_content = "Mock report content: WBC 15,000, Lactate 4.2, Blood Culture Positive for E. Coli."
+
+    # Analyze with AI
+    try:
+        analysis = ai_service.analyze_diagnostic_report(text_content)
+    except Exception as e:
+        print(f"DIAGNOSTIC AI ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"AI Analysis Failed: {str(e)}")
+    
+    # Update report
+    report.inner_analysis_summary = analysis.get('analysis_summary', 'Analysis completed with no summary.')
+    report.inner_analysis_data = analysis
+    
+    try:
+        db.commit()
+        db.refresh(report)
+    except Exception as e:
+        db.rollback()
+        print(f"DATABASE UPDATE ERROR: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save analysis to database.")
+        
+    return report
+
 @app.get("/patient/recommendations", response_model=List[schemas.RecommendationResponse])
 def get_doctor_recommendations(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user_with_role("patient"))):
     doctors = crud.get_doctors(db)

@@ -80,8 +80,14 @@ class SepsisReportResponse(BaseModel):
     urgency_level: str
     recommendations: str
     
+    # Inner Analysis Fields
+    suggested_tests: Optional[List[str]] = None
+    inner_analysis_summary: Optional[str] = None
+    inner_analysis_data: Optional[dict] = None
+    
     class Config:
         orm_mode = True
+        from_attributes = True
 
 class RecommendationResponse(BaseModel):
     doctor_id: int

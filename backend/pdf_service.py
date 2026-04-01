@@ -83,28 +83,58 @@ def generate_medical_report_pdf(patient_name, report):
 
     # Urgency & Recommendation
     c.setFillColor(colors.teal)
-    c.rect(inch, 1*inch, width - 2*inch, 1.5*inch, fill=1, stroke=0)
+    c.rect(inch, 2.5*inch, width - 2*inch, 1.2*inch, fill=1, stroke=0)
     c.setFillColor(colors.white)
     
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(inch + 0.3*inch, 2.2*inch, f"URGENCY: {report.urgency_level}")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(inch + 0.2*inch, 3.5*inch, f"URGENCY: {report.urgency_level}")
     
-    c.setFont("Helvetica", 10)
-    text_object = c.beginText(inch + 0.3*inch, 2.0*inch)
-    text_object.setFont("Helvetica", 10)
-    text_object.setLeading(12)
+    text_object = c.beginText(inch + 0.2*inch, 3.3*inch)
+    text_object.setFont("Helvetica", 9)
+    text_object.setLeading(11)
     
-    rec_text = report.recommendations
+    rec_text = f"RECOMMENDATIONS: {report.recommendations}"
     words = rec_text.split()
     line = ""
     for word in words:
-        if c.stringWidth(line + word) < (width - 2.6*inch):
+        if c.stringWidth(line + word) < (width - 2.8*inch):
             line += word + " "
         else:
             text_object.textLine(line)
             line = word + " "
     text_object.textLine(line)
     c.drawText(text_object)
+
+    # Next Steps / Suggested Tests
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(inch, 2.1*inch, "Suggested Diagnostic Tests (Immediate Priority)")
+    c.line(inch, 2.05*inch, width-inch, 2.05*inch)
+    
+    c.setFont("Helvetica", 10)
+    tests = ", ".join(report.suggested_tests) if report.suggested_tests else "None specified."
+    c.drawString(inch, 1.85*inch, tests)
+
+    # Inner Analysis results if present
+    if report.inner_analysis_summary:
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(inch, 1.5*inch, "Inner Clinical Analysis (Linked Lab Report)")
+        c.line(inch, 1.45*inch, width-inch, 1.45*inch)
+        
+        c.setFont("Helvetica-Oblique", 9)
+        text_object = c.beginText(inch, 1.3*inch)
+        text_object.setLeading(11)
+        summary = report.inner_analysis_summary
+        words = summary.split()
+        line = ""
+        for word in words:
+            if c.stringWidth(line + word) < (width - 2*inch):
+                line += word + " "
+            else:
+                text_object.textLine(line)
+                line = word + " "
+        text_object.textLine(line)
+        c.drawText(text_object)
 
     # Footer
     c.setFillColor(colors.grey)
