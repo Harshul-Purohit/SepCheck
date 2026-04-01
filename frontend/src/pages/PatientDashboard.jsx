@@ -119,41 +119,55 @@ function PatientDashboard() {
     
     setEmergencyLoading(true);
     try {
-      // 1. Send Emergency Signal
+      // 1. Send Emergency Signal to Backend FIRST
       await api.post('/patient/emergency', {
         report_id: reports[0].id 
       });
-      
+
       // 2. Try to get location for nearby hospitals
-      if ("geolocation" in navigator) {
+      if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(async (position) => {
           const { latitude, longitude } = position.coords;
-          // Simple Overpass API call to find hospitals
+          console.log(`Emergency at: ${latitude}, ${longitude}`);
+          
           try {
-            const query = `[out:json];node["amenity"="hospital"](around:5000,${latitude},${longitude});out 5;`;
-            const osmRes = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-            const data = await osmRes.json();
-            setNearbyHospitals(data.elements.map(e => ({
-                name: e.tags.name || "Unnamed Hospital",
-                lat: e.lat,
-                lon: e.lon
-            })));
+            // Fetch nearby hospitals from Overpass API (OpenStreetMap)
+            const query = `[out:json];node["amenity"="hospital"](around:10000,${latitude},${longitude});out 5;`;
+            const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+            
+            const response = await axios.get(overpassUrl);
+            const hospitals = response.data.elements.map(h => ({
+              name: h.tags.name || "Hospital",
+              lat: h.lat,
+              lon: h.lon
+            }));
+            setNearbyHospitals(hospitals);
             setShowHospitals(true);
-          } catch (osmErr) {
-            console.error("OSM Fetch failed", osmErr);
-            alert("Emergency Alert Sent! Note: Could not retrieve nearby hospital list.");
+            alert("Emergency Alert Sent! Note: Check the clinical map now appearing on your screen!");
+          } catch (osmError) {
+            console.error("OSM/Overpass fail", osmError);
+            alert(`Emergency Alert Sent! Note: Hospitals could not be retrieved instantly. \n\nWe have provided a direct Google Maps link for you.`);
+            // Set a fallback link to searching hospitals near me
+            setNearbyHospitals([{ 
+                name: "Find Hospitals in Google Maps", 
+                lat: latitude, 
+                lon: longitude, 
+                is_fallback: true 
+            }]);
+            setShowHospitals(true);
           }
         }, (err) => {
           console.warn("Location access denied", err);
           alert("Emergency Alert Sent! (Location access denied for hospital search)");
         });
       } else {
-        alert("Emergency Alert Sent! (Geolocation not supported)");
+        alert("Emergency Alert Sent! (Geolocation not supported by this browser)");
       }
       
       fetchConsultations();
     } catch (err) {
       console.error("Emergency failed", err);
+      alert("Emergency alert failed! Please call emergency services immediately.");
     } finally {
       setEmergencyLoading(false);
     }
@@ -518,12 +532,12 @@ function PatientDashboard() {
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Building className="w-3 h-3" /> Hospital Node</p>
                               </div>
                               <a 
-                                href={`https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`}
+                                href={h.is_fallback ? `https://www.google.com/maps/search/hospitals+near+me/@${h.lat},${h.lon},14z` : `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="bg-white text-rose-600 text-xs font-black p-3 rounded-xl shadow-sm border border-slate-100 group-hover:bg-rose-600 group-hover:text-white transition-all"
                               >
-                                  NAVIGATE
+                                  {h.is_fallback ? "SEARCH" : "NAVIGATE"}
                               </a>
                           </div>
                       ))}
