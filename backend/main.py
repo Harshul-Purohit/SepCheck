@@ -148,7 +148,7 @@ def download_patient_report_pdf(report_id: int, db: Session = Depends(database.g
     if not report or report.patient_id != profile.id:
         raise HTTPException(status_code=404, detail="Report not found")
         
-    pdf_buffer = pdf_service.generate_medical_report_pdf(profile.full_name, report)
+    pdf_buffer = pdf_service.generate_medical_report_pdf(profile, report)
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=sepcheck_report_{report_id}.pdf"})
 
 @app.post("/patient/report/{report_id}/upload-diagnostic", response_model=schemas.SepsisReportResponse)

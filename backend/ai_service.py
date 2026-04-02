@@ -1,4 +1,5 @@
 import json
+import re
 from groq import Groq
 import os
 from dotenv import load_dotenv
@@ -39,8 +40,8 @@ def analyze_sepsis_risk(patient_data: dict, questionnaire: dict):
     {{
         "risk_level": "Low" | "Medium" | "High",
         "probability_score": <float between 0 and 1>,
-        "symptoms_summary": "<A 2-3 sentence summary of the key symptoms and concern level>",
-        "explanation": "<A short clinical explanation for why this risk level was chosen based on the vitals and answers>",
+        "symptoms_summary": "3-4 VERY SHORT bullet points documenting key symptoms.",
+        "explanation": "2-3 VERY SHORT bullet points justifying the risk level clinically.",
         "abnormal_values": ["<list of abnormal indicators like 'High Heart Rate', 'Low BP'>", ...],
         "urgency_level": "Immediate" | "Within 24 hours" | "Monitor",
         "recommendations": "<short actionable clinical recommendations for the patient>",
@@ -130,6 +131,21 @@ def get_ai_followup_response(report_data: dict, user_question: str, history: lis
     except Exception as e:
         return f"I'm sorry, I'm having trouble connecting to the AI service. error: {str(e)}"
 
+def extract_json_from_text(text: str):
+    """Safely extracts JSON from a potentially conversational AI response."""
+    try:
+        # Try direct load
+        return json.loads(text)
+    except:
+        # Try regex extract
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except:
+                pass
+    return None
+
 def analyze_diagnostic_report(report_text: str):
     # Truncate to keep the message compact and fast
     truncated_text = report_text[:5000] if len(report_text) > 5000 else report_text
@@ -140,8 +156,8 @@ def analyze_diagnostic_report(report_text: str):
     [/END CONTENT]
 
     TASK: Analyze the above lab report for sepsis indicators.
-    INSTRUCTION: Write a SHORT AND CRISP summary in clear English.
-    CRITICAL: The 'analysis_summary' field is MANDATORY and must contain your main findings.
+    INSTRUCTION: Write a VERY SHORT summary in 3-4 bullet points (clear English).
+    CRITICAL: The 'analysis_summary' field is MANDATORY and must contain these bullets.
 
     FORMAT: Return ONLY valid JSON. No explanations. No text outside JSON.
 
@@ -171,10 +187,19 @@ def analyze_diagnostic_report(report_text: str):
                 model=model,
                 temperature=0.1,
                 max_tokens=2048,
-                response_format={"type": "json_object"}
+                # Removed response_format={"type": "json_object"} to avoid error 400 on malformed outputs
             )
             content = completion.choices[0].message.content
-            raw_result = json.loads(content)
+            raw_result = extract_json_from_text(content)
+            
+            # If still not JSON, treat the whole content as the summary (Pure English Fallback)
+            if not raw_result:
+                print(f"AI returned non-JSON text. Using fallback for: {model}")
+                return {
+                    "analysis_summary": content,
+                    "critical_markers": ["Extracted from plain text"],
+                    "concern_status": "Unknown"
+                }
             
             # Robust type checking
             if isinstance(raw_result, list) and len(raw_result) > 0:
@@ -196,9 +221,20 @@ def analyze_diagnostic_report(report_text: str):
             # Reconstruction Fallback: Build one from findings if still empty
             if not summary and isinstance(raw_result.get("findings"), dict):
                 f = raw_result["findings"]
-                active_findings = [k.replace("elevated_", "").upper() for k, v in f.items() if v is True]
-                if active_findings:
-                    summary = f"Elevated levels of {', '.join(active_findings)} detected in clinical report."
+                # Create a concise list of all findings
+                details = []
+                for k, v in f.items():
+                    if k != "other_critical_findings":
+                        status = "Elevated" if v is True else "Normal"
+                        name = k.replace("elevated_", "").upper()
+                        details.append(f"{name}: {status}")
+                
+                summary = "Raw Data Extract: " + " | ".join(details)
+                
+                # Add other findings if present
+                others = f.get("other_critical_findings")
+                if others and isinstance(others, list) and len(others) > 0:
+                    summary += " | Other: " + ", ".join(others)
             
             return {
                 "analysis_summary": str(summary or "No summary available."),

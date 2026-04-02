@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Thermometer, HeartPulse, AlertTriangle, FileText, Upload, Download, User as UserIcon, Gauge, Clock, Building, CheckCircle, MessageSquare, ShieldCheck } from 'lucide-react';
+import { Activity, Thermometer, HeartPulse, AlertTriangle, FileText, Upload, Download, User as UserIcon, Gauge, Clock, Building, CheckCircle, MessageSquare, ShieldCheck, Truck } from 'lucide-react';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import PatientProfileForm from '../components/PatientProfileForm';
@@ -110,6 +111,42 @@ function PatientDashboard() {
     } finally {
       setConsulting(false);
     }
+  };
+
+  const handleCheckAvailability = async () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setEmergencyLoading(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const { latitude, longitude } = position.coords;
+      try {
+        const query = `[out:json];node["amenity"="hospital"](around:20000,${latitude},${longitude});out 10;`;
+        const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+        
+        const response = await axios.get(overpassUrl);
+        const hospitals = response.data.elements.map(h => ({
+          name: h.tags.name || "Nearby Clinical Node",
+          lat: h.lat,
+          lon: h.lon,
+          icu_beds: Math.floor(Math.random() * 2) + 1, // Simulated 1 or 2 as requested
+          ambulance_eta: `${Math.floor(Math.random() * 10) + 5} mins`
+        }));
+        
+        setNearbyHospitals(hospitals);
+        setShowHospitals(true);
+      } catch (err) {
+        console.error("Availability check failed", err);
+        alert("Unable to fetch real-time resources. Please use the HELP ME NOW button for emergency assistance.");
+      } finally {
+        setEmergencyLoading(false);
+      }
+    }, (err) => {
+      setEmergencyLoading(false);
+      alert("Access to location is required for resource tracking.");
+    });
   };
 
   const handleNeedHelpNow = async () => {
@@ -261,18 +298,29 @@ function PatientDashboard() {
           </div>
           <div className="flex-1 text-center md:text-left">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Need Help Now?</h2>
-            <p className="text-slate-500 font-medium">One-tap emergency signal to notify all on-call clinical specialists.</p>
+            <p className="text-slate-500 font-medium">One-tap clinical response vs real-time resource tracking.</p>
           </div>
-          <button 
-            onClick={handleNeedHelpNow}
-            disabled={emergencyLoading}
-            className="w-full md:w-auto px-10 py-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white font-black rounded-[2rem] shadow-2xl shadow-rose-200 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
-          >
-            {emergencyLoading ? <Activity className="w-6 h-6 animate-spin" /> : <AlertTriangle className="w-6 h-6" />}
-            HELP ME NOW
-          </button>
+          <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button 
+              onClick={handleNeedHelpNow}
+              disabled={emergencyLoading}
+              className="px-8 py-5 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white font-black rounded-[2rem] shadow-2xl shadow-rose-200 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+            >
+              {emergencyLoading ? <Activity className="w-6 h-6 animate-spin" /> : <AlertTriangle className="w-6 h-6" />}
+              HELP ME NOW
+            </button>
+            <button 
+              onClick={handleCheckAvailability}
+              disabled={emergencyLoading}
+              className="px-8 py-5 bg-white border-2 border-brand-200 hover:border-brand-400 text-brand-700 font-black rounded-[2rem] shadow-xl shadow-brand-50 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+            >
+              {emergencyLoading ? <Activity className="w-6 h-6 animate-spin text-brand-600" /> : <Truck className="w-6 h-6 text-brand-500" />}
+              RESOURCE TRACKING
+            </button>
+          </div>
         </div>
       </div>
+
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
@@ -450,7 +498,7 @@ function PatientDashboard() {
                     className="p-3 rounded-2xl bg-white border border-slate-200 text-brand-600 hover:bg-brand-50 hover:border-brand-200 transition-all shadow-sm flex items-center gap-2 group"
                   >
                     <Download className="w-5 h-5 group-hover:scale-110 transition" />
-                    <span className="text-xs font-bold">DOWNLOAP PDF</span>
+                    <span className="text-xs font-bold">DOWNLOAD PDF</span>
                   </button>
                 </div>
               </div>
@@ -502,7 +550,23 @@ function PatientDashboard() {
                         {report.inner_analysis_summary && (
                             <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl">
                                 <p className="text-[10px] font-black uppercase text-emerald-600 mb-2 tracking-widest">INNER CLINICAL ANALYSIS</p>
-                                <p className="text-sm font-medium text-slate-700 leading-relaxed italic">"{report.inner_analysis_summary}"</p>
+                                <p className="text-sm font-medium text-slate-700 leading-relaxed italic mb-4">"{report.inner_analysis_summary}"</p>
+                                
+                                {report.inner_analysis_data?.findings && (
+                                    <div className="pt-4 border-t border-emerald-100 grid grid-cols-2 gap-3">
+                                        {Object.entries(report.inner_analysis_data.findings).map(([key, val]) => {
+                                            if (key === 'other_critical_findings') return null;
+                                            return (
+                                                <div key={key} className="flex justify-between items-center text-[10px] bg-white/50 px-3 py-1.5 rounded-lg border border-emerald-50">
+                                                    <span className="text-slate-500 font-bold uppercase">{key.replace('elevated_', '')}</span>
+                                                    <span className={`font-black ${val === true ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                        {val === true ? 'HIGH' : 'NORMAL'}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -547,27 +611,36 @@ function PatientDashboard() {
                   </div>
                   <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
                       {nearbyHospitals.map((h, i) => (
-                          <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-rose-200 transition-all group">
-                              <div>
+                          <div key={i} className="flex flex-col sm:flex-row items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-brand-200 transition-all group gap-4">
+                              <div className="flex-1 w-full sm:w-auto">
                                   <p className="font-bold text-slate-900">{h.name}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Building className="w-3 h-3" /> Hospital Node</p>
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    <span className="text-[9px] font-black bg-brand-50 text-brand-700 px-2 py-1 rounded-lg border border-brand-100 flex items-center gap-1">
+                                      <Truck className="w-3 h-3" /> {h.ambulance_eta || "N/A"}
+                                    </span>
+                                    <span className={`text-[9px] font-black px-2 py-1 rounded-lg border flex items-center gap-1 ${h.icu_beds > 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                                      <ShieldCheck className="w-3 h-3" /> {h.icu_beds || 0} ICU BEDS
+                                    </span>
+                                  </div>
                               </div>
-                              <a 
-                                href={h.is_fallback ? `https://www.google.com/maps/search/hospitals+near+me/@${h.lat},${h.lon},14z` : `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="bg-white text-rose-600 text-xs font-black p-3 rounded-xl shadow-sm border border-slate-100 group-hover:bg-rose-600 group-hover:text-white transition-all"
-                              >
-                                  {h.is_fallback ? "SEARCH" : "NAVIGATE"}
-                              </a>
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <a 
+                                  href={h.is_fallback ? `https://www.google.com/maps/search/hospitals+near+me/@${h.lat},${h.lon},14z` : `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lon}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex-1 sm:flex-none bg-white text-rose-600 text-[10px] font-black px-6 py-3 rounded-xl shadow-sm border border-slate-100 group-hover:bg-rose-600 group-hover:text-white transition-all text-center"
+                                >
+                                    NAVIGATE
+                                </a>
+                              </div>
                           </div>
                       ))}
-                      {nearbyHospitals.length === 0 && <p className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-xs">No hospitals found within 5km.</p>}
+                      {nearbyHospitals.length === 0 && <p className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-xs">Scanning for active nodes...</p>}
                   </div>
                   <div className="p-6 pt-0">
                       <button 
                         onClick={() => setShowHospitals(false)}
-                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition shadow-lg"
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition shadow-lg uppercase tracking-widest text-xs"
                       >
                           I've found help
                       </button>

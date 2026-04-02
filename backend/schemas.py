@@ -33,7 +33,6 @@ class PatientProfileResponse(PatientProfileCreate):
     id: int
     user_id: int
     class Config:
-        orm_mode = True
         from_attributes = True
 
 class DoctorProfileCreate(BaseModel):
@@ -53,7 +52,6 @@ class DoctorProfileResponse(DoctorProfileCreate):
     user_id: int
     is_verified: bool
     class Config:
-        orm_mode = True
         from_attributes = True
 
 # Reports and Forms
@@ -88,7 +86,6 @@ class SepsisReportResponse(BaseModel):
     is_doctor_suggested: bool
     
     class Config:
-        orm_mode = True
         from_attributes = True
 
 class RecommendationResponse(BaseModel):
@@ -126,7 +123,6 @@ class ConsultationResponse(BaseModel):
     created_at: Any
     
     class Config:
-        orm_mode = True
         from_attributes = True
 
 # Chat and Emergency
@@ -142,7 +138,6 @@ class ChatMessage(BaseModel):
     created_at: Any
     
     class Config:
-        orm_mode = True
         from_attributes = True
 
 class EmergencyRequestCreate(BaseModel):
@@ -157,7 +152,6 @@ class EmergencyRequestResponse(BaseModel):
     patient_name: Optional[str] = None
     
     class Config:
-        orm_mode = True
         from_attributes = True
 
 class AIChatRequest(BaseModel):

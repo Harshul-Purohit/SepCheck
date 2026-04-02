@@ -140,9 +140,6 @@ def create_emergency_request(db: Session, patient_id: int, report_id: int):
         models.EmergencyRequest.patient_id == patient_id,
         models.EmergencyRequest.status == "active"
     ).first()
-    if active:
-        return active
-        
     db_emergency = models.EmergencyRequest(
         patient_id=patient_id,
         report_id=report_id,
