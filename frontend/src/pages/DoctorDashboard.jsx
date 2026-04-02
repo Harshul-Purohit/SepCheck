@@ -140,11 +140,13 @@ function DoctorDashboard() {
             </div>
             <div>
               <h3 className="text-xl font-black tracking-tight uppercase">Critical Patient Emergency Alert</h3>
-              <p className="text-rose-100 text-sm font-bold">{emergencies.length} active emergency signal{emergencies.length > 1 ? 's' : ''} detected.</p>
+              <p className="text-rose-100 text-sm font-bold">
+                {Array.from(new Set(emergencies.map(e => e.patient_id))).length} unique patient emergency signals detected.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-             {emergencies.map(e => (
+             {Array.from(new Map(emergencies.map(e => [e.patient_id, e])).values()).map(e => (
                <div key={e.id} className="bg-white text-rose-600 px-4 py-2 rounded-xl text-xs font-black shadow-lg">
                  PATIENT #{e.patient_id}
                </div>
